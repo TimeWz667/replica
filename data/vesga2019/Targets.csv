@@ -1,0 +1,9 @@
+Group,Index,Time,M,L,U
+Epi,Incidence,2016,0.00211,0.00109,0.00345
+Epi,Prevalence,2016,0.00266,0.00202,0.00303
+Epi,Mortality,2016,3.30E-04,2.45E-04,4.15E-04
+Frac,PrAsym,2016,0.2,0.16,0.24
+Frac,PrSym,2016,0.26,0.21,0.31
+Frac,PrCS,2016,0.12,0.09,0.14
+Frac,PrTxPub,2016,0.31,0.25,0.38
+Frac,PrTxPri,2016,0.09,0.07,0.11
