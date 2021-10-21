@@ -4,4 +4,5 @@
 
 .Rproj.user
 
-
+out/
+.idea/
