@@ -1,65 +1,23 @@
-import numpy as np
-from replica import Uniform, Parameters
+from replica.vesga2019.model import ModelIndia, Y0, dfe
 from replica.vesga2019.keys import *
+from replica.vesga2019.likelihood import find_likelihood_function
+from replica import simulate
+from sims_pars import get_all_fixed_sc
+from sims_pars.fitting import AbsObjectiveSC
+import time
+import numpy as np
 
-__all__ = ['ParameterDefinition']
-
-
-FixedPars = {
-        'p_fast': 0.14,
-        'r_react': 0.001,  # Activation of Latent TB
-        'r_relapse_tc': 0.032,  # relapse after treatment completion,
-        'r_relapse_td': 0.14,  # relapse after treatment default,
-        'r_relapse_stab': 0.0015,  # relapse after stabilisation,
-        'r_stab': 0.5,  # stabilisation rate,
-        'r_tri': 52,  # treatment initialisation rate,
-        'r_rec': 2,  # first-line treatment duration
-        'r_growth': 0.023,  # population growth
-        'r_death': 0.015
-    }
+__author__ = 'Chu-Chang Ku'
+__all__ = ['Objective']
 
 
-PriorPars = {
-        'beta': Uniform(2.5, 11.2),
-        'rr_inf_cs': Uniform(0.1, 10),
-        'r_sym': Uniform(3, 5.5),
-        'r_death_tb': Uniform(0.14, 0.18),
-        'r_cure': Uniform(0.14, 0.18),  # self-cure
-        'rr_sus': Uniform(0.25, 0.75),  # reduced susceptibility
-        'rr_csi': Uniform(2, 3.3),  # initial care-seeking rate
-        'rr_tr': Uniform(2.6, 5.2),  # transition between episode
-        'p_pub': Uniform(0.4, 0.55),
-        'p_dx_pub': Uniform(0.8, 0.84),
-        'p_dx_pri': Uniform(0.5, 0.67),
-        'p_tri_pub': Uniform(0.86, 0.89),
-        'p_tri_pri': Uniform(0.32, 0.73),
-        'p_default_pub': Uniform(0.13, 0.16),
-        'p_default_pri': Uniform(0.13, 0.16)
-    }
-
-
-class ParameterDefinition:
-    def __init__(self, **kwargs):
-        self.Prior = {k: v for k, v in PriorPars.items() if k not in kwargs}
-        self.Fixed = dict(FixedPars)
-        self.Fixed.update(kwargs)
-
-    def draw_free_pars(self):
-        return {k: v.rand() for k, v in self.Prior.items()}
-
-    def evaluate_prior(self, ps):
-        return sum([v.logpdf(ps[k]) for k, v in self.Prior.items()])
-
-    def draw(self, **kwargs):
-        ps = dict(self.Fixed)
-
-        for k, v in self.Prior.items():
-            ps[k] = v.rand()
-        ps.update(kwargs)
+class TransformedPars:
+    def __init__(self, ps):
+        self.Pars = ps
 
         cs = self.trm_care(ps)
 
-        transformed = {
+        self.Transformed = {
             'Progression': self.trm_natural_history(ps),
             'Care': cs,
             'CareInitial': self.trm_care_initial(ps, cs),
@@ -71,14 +29,18 @@ class ParameterDefinition:
         sus = np.zeros(N_State)
         sus[I_U] = 1
         sus[I_LTBI] = ps['rr_sus']
-        transformed['sus'] = sus
+        self.Transformed['sus'] = sus
 
         trans = np.zeros(N_State)
         trans[[I_Asym, I_Sym]] = ps['beta']
         trans[[I_DPub, I_DPri, I_E]] = ps['beta'] * ps['rr_inf_cs']
-        transformed['trans'] = trans
+        self.Transformed['trans'] = trans
 
-        return Parameters(ps, transformed)
+    def __getitem__(self, item):
+        try:
+            return self.Pars[item]
+        except KeyError:
+            return self.Transformed[item]
 
     @staticmethod
     def trm_natural_history(ps):
@@ -126,10 +88,10 @@ class ParameterDefinition:
         trm[I_D, I_T] = ps['r_tri'] * p_dx * p_tri
 
         # treatment outcome
-        #trm[I_TPub, I_RHigh] = ps['p_default_pub'] * ps['r_rec']  # default
-        #trm[I_TPub, I_RLow] = (1 - ps['p_default_pub']) * ps['r_rec']  # success
-        #trm[I_TPri, I_RHigh] = ps['p_default_pri'] * ps['r_rec']  # default
-        #trm[I_TPri, I_RLow] = (1 - ps['p_default_pri']) * ps['r_rec']  # success
+        # trm[I_TPub, I_RHigh] = ps['p_default_pub'] * ps['r_rec']  # default
+        # trm[I_TPub, I_RLow] = (1 - ps['p_default_pub']) * ps['r_rec']  # success
+        # trm[I_TPri, I_RHigh] = ps['p_default_pri'] * ps['r_rec']  # default
+        # trm[I_TPri, I_RLow] = (1 - ps['p_default_pri']) * ps['r_rec']  # success
 
         trm[I_TPub, I_RHigh] = ps['p_default_pub']  # default
         trm[I_TPub, I_RLow] = ps['r_rec']  # success
@@ -188,12 +150,51 @@ class ParameterDefinition:
         return trm
 
 
+class Objective(AbsObjectiveSC):
+    def __init__(self, data_path, prior_path):
+        with open(prior_path, 'r') as f:
+            scr = f.read()
+        sc = get_all_fixed_sc(scr)
+
+        AbsObjectiveSC.__init__(self, sc)
+        self.Model = ModelIndia()
+        self.Likelihood = find_likelihood_function(data_path)
+        self.DFE = dfe
+        self.N_eval = 0
+
+    def simulate(self, pars):
+        time.sleep(0.002)
+
+        t_out = np.linspace(1970, 2018, num=int((2018 - 1970) / 0.5) + 1)
+
+        try:
+            sim = simulate(self.Model, TransformedPars(pars), Y0, t_out, dfe=dfe)
+            self.N_eval += 1
+        except ValueError:
+            sim = None, None, {'succ': False}
+
+        return sim
+
+    def link_likelihood(self, sim):
+        ys, ms, msg = sim
+        if not msg['succ'] or not ys.success:
+            return - np.inf
+
+        return self.Likelihood(ms)
+
+
 if __name__ == '__main__':
-    Param = ParameterDefinition()
+    to_fit = Objective(
+        prior_path='../../data/vesga2019/Prior.txt',
+        data_path='../../data/vesga2019/Targets.csv'
+    )
 
-    p = Param.draw()
+    pars = to_fit.sample_prior()
+    print(pars)
+    sim = to_fit.simulate(pars)
 
-    for k, v in p.Pars.items():
-        print('{}: {:.2g}'.format(k, v))
+    print(sim[1])
 
-    print(p['CareInitial'])
+    li = to_fit.evaluate(pars)
+    print(li)
+

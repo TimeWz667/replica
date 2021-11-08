@@ -1,0 +1,28 @@
+PCore Juan {
+    p_fast = 0.14
+    r_react = 0.001  # Activation of Latent TB
+    r_relapse_tc = 0.032  # relapse after treatment completion
+    r_relapse_td = 0.14  # relapse after treatment default
+    r_relapse_stab = 0.0015  # relapse after stabilisation
+    r_stab = 0.5  # stabilisation rate
+    r_tri = 52  # treatment initialisation rate
+    r_rec = 2  # first-line treatment duration
+    r_growth = 0.023  # population growth
+    r_death = 0.015
+
+    beta ~ unif(2.5, 11.2)
+    rr_inf_cs ~ unif(0.1, 10)
+    r_sym ~ unif(3, 5.5)
+    r_death_tb ~ unif(0.14, 0.18)
+    r_cure ~ unif(0.14, 0.18)  # self-cure
+    rr_sus ~ unif(0.25, 0.75)  # reduced susceptibility
+    rr_csi ~ unif(2, 3.3)  # initial care-seeking rate
+    rr_tr ~ unif(2.6, 5.2)  # transition between episode
+    p_pub ~ unif(0.4, 0.55)
+    p_dx_pub ~ unif(0.8, 0.84)
+    p_dx_pri ~ unif(0.5, 0.67)
+    p_tri_pub ~ unif(0.86, 0.89)
+    p_tri_pri ~ unif(0.32, 0.73)
+    p_default_pub ~ unif(0.13, 0.16)
+    p_default_pri ~ unif(0.13, 0.16)
+}

@@ -103,28 +103,3 @@ seed = 1e-2
 Y0 = np.zeros(N_State)
 Y0[I_U] = 1 - seed
 Y0[I_Lat] = seed
-
-
-if __name__ == '__main__':
-    from scipy.integrate import solve_ivp
-    from replica.vesga2019.parameters import ParameterDefinition
-    import pandas as pd
-    import matplotlib.pylab as plt
-
-    model = ModelIndia()
-    model.Intv = False
-
-    pars_def = ParameterDefinition()
-
-    pars = pars_def.draw()
-
-    ys = solve_ivp(model, [1700, 2035], Y0,
-                   args=(pars, ), dense_output=True, events=dfe)
-
-    ms = pd.DataFrame([model.measure(t, ys.sol(t), pars) for t in np.arange(1970, 2035, 0.1)])
-    print(ms)
-    ms = ms.set_index('Time')
-    ms[ms.index > 2010].IncTB.plot()
-    ms[ms.index > 2010].PrevTB.plot()
-    ms[ms.index > 2010].MorTB.plot()
-    plt.show()
